@@ -4,3 +4,8 @@
 
 * { box-sizing: border-box; }
 body { margin: 0; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+button, a { -webkit-tap-highlight-color: transparent; }
+.chart-card { @apply rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-100 sm:p-6; }
+.chart-card h2 { @apply text-lg font-black text-slate-900; }
+.chart-caption { @apply mt-1 text-sm leading-6 text-slate-500; }
+@media print { header, button, .no-print { display: none !important; } body { background: white; } }

@@ -5,7 +5,7 @@ const client = axios.create({ baseURL: import.meta.env.VITE_API_URL || 'http://1
 /** Create the browser's persistent assistant session. */
 export const createSession = () => client.post('/session')
 /** Submit a natural-language product request. */
-export const sendChat = (session_id, message) => client.post('/chat', { session_id, message })
+export const sendChat = (session_id, message, selected_products = []) => client.post('/chat', { session_id, message, selected_products })
 /** Upload an image for vision identification. */
 export const uploadPhoto = (session_id, file) => {
   const form = new FormData(); form.append('file', file)
@@ -16,3 +16,5 @@ export const uploadPdf = (session_id, file) => {
   const form = new FormData(); form.append('file', file)
   return client.post(`/upload-pdf?session_id=${encodeURIComponent(session_id)}`, form)
 }
+/** Load persisted session messages for the session timeline. */
+export const getHistory = sessionId => client.get(`/history/${encodeURIComponent(sessionId)}`)

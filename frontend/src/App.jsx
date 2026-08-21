@@ -1,51 +1,87 @@
-import { useEffect, useState } from 'react'
-import { Sparkles } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { createSession, sendChat, uploadPdf, uploadPhoto } from './api'
-import ChatPanel from './components/ChatPanel'
-import ProductCard from './components/ProductCard'
-import ComparisonTable from './components/ComparisonTable'
+import Navbar from './components/Navbar'
+import AnalyticsPage from './pages/AnalyticsPage'
+import ChatPage from './pages/ChatPage'
+import LandingPage from './pages/LandingPage'
 
-const welcome = { role: 'assistant', content: 'Hey! What are we shopping for today? Tell me your budget and the one thing that matters most to you.' }
+const productKey = product => `${product.name}|${product.price}|${product.source}|${product.link}`
+const welcome = { role: 'assistant', content: 'Hi, I’m ProductGenie. Tell me which product category you want to explore. Start a new chat before switching categories.' }
 
-/** Coordinate API session state, chat updates, and the live product panel. */
+/** Own one product-category chat session across the app's routes. */
 export default function App() {
   const [sessionId, setSessionId] = useState('')
   const [messages, setMessages] = useState([welcome])
   const [products, setProducts] = useState([])
+  const [selectedProducts, setSelectedProducts] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [connecting, setConnecting] = useState(true)
-  useEffect(() => {
-    createSession()
-      .then(r => setSessionId(r.data.session_id))
-      .catch(() => {
-        const detail = 'Could not connect to the ProductGenie API. Start the backend on port 8000.'
-        setError(detail)
-        setMessages(m => [...m, { role: 'assistant', content: detail }])
-      })
-      .finally(() => setConnecting(false))
-  }, [])
+  const sessionEpoch = useRef(0)
+
+  const startNewChat = async () => {
+    sessionEpoch.current += 1
+    setSessionId('')
+    setMessages([welcome])
+    setProducts([])
+    setSelectedProducts([])
+    setError('')
+    setLoading(false)
+    setConnecting(true)
+    try {
+      const { data } = await createSession()
+      setSessionId(data.session_id)
+    } catch {
+      setError('Could not create a new ProductGenie session. Start the backend on port 8000 and try again.')
+    } finally {
+      setConnecting(false)
+    }
+  }
+
+  useEffect(() => { startNewChat() }, [])
+
   const run = async (action, optimistic) => {
     if (!sessionId) {
       setError('The chat session is not ready. Refresh the page after the API starts.')
       return
     }
-    setError(''); setLoading(true); if (optimistic) setMessages(m => [...m, optimistic])
-    try { const { data } = await action(); setMessages(m => [...m, { role: 'assistant', content: data.response }]); setProducts(data.products || []) }
-    catch (e) {
+    const requestEpoch = sessionEpoch.current
+    setError('')
+    setLoading(true)
+    if (optimistic) setMessages(items => [...items, optimistic])
+    try {
+      const { data } = await action()
+      if (requestEpoch !== sessionEpoch.current) return
+      const responseProducts = data.products || []
+      if (responseProducts.length) setProducts(responseProducts.slice(0, 8))
+      setMessages(items => [...items, { role: 'assistant', content: data.response, products: responseProducts.slice(0, 8), reasoningDepth: data.reasoning_depth || '' }])
+    } catch (e) {
+      if (requestEpoch !== sessionEpoch.current) return
       const detail = e.response?.data?.detail || 'The request could not be completed. Please try again.'
       setError(detail)
-      setMessages(m => [...m, { role: 'assistant', content: `I couldn't complete that request: ${detail}` }])
+      setMessages(items => [...items, { role: 'assistant', content: `I couldn't complete that request: ${detail}` }])
+    } finally {
+      if (requestEpoch === sessionEpoch.current) setLoading(false)
     }
-    finally { setLoading(false) }
   }
-  return <main className="min-h-screen bg-slate-50 text-slate-800 md:grid md:grid-cols-[2fr_3fr]">
-    <ChatPanel messages={messages} loading={loading || connecting} ready={Boolean(sessionId)} hasProducts={products.length > 0} onSend={text => run(() => sendChat(sessionId, text), { role: 'user', content: text })} onPhoto={file => run(() => uploadPhoto(sessionId, file), { role: 'user', content: `Uploaded photo: ${file.name}` })} onPdf={file => run(() => uploadPdf(sessionId, file), { role: 'user', content: `Uploaded PDF: ${file.name}` })} />
-    <section className="p-5 md:p-8"><div className="mb-6 flex items-center gap-2"><div className="rounded-lg bg-violet-100 p-2 text-violet-600"><Sparkles size={20} /></div><div><h1 className="font-bold">Live comparison</h1><p className="text-xs text-slate-500">Products found in this conversation</p></div></div>
-      {error && <p className="mb-4 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
-      {loading && !products.length && <div className="grid gap-4 sm:grid-cols-2">{[1,2,3,4].map(x => <div className="h-44 animate-pulse rounded-xl bg-slate-200" key={x} />)}</div>}
-      {!loading && !products.length && <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">Your live product cards and side-by-side comparison will appear here.</div>}
-      {!!products.length && <><div className="grid gap-4 sm:grid-cols-2">{products.map((p, i) => <ProductCard key={`${p.name}-${i}`} product={p} />)}</div><div className="mt-7"><ComparisonTable products={products} /></div></>}
-    </section>
-  </main>
+
+  const toggleComparison = product => setSelectedProducts(current => {
+    const selected = current.some(item => productKey(item) === productKey(product))
+    return selected ? current.filter(item => productKey(item) !== productKey(product)) : [...current, product]
+  })
+
+  const shared = useMemo(() => ({
+    sessionId, messages, products, selectedProducts, loading, connecting, error,
+    onSend: text => run(() => sendChat(sessionId, text, selectedProducts), { role: 'user', content: text }),
+    onPhoto: file => run(() => uploadPhoto(sessionId, file), { role: 'user', content: `Uploaded photo: ${file.name}` }),
+    onPdf: file => run(() => uploadPdf(sessionId, file), { role: 'user', content: `Uploaded PDF: ${file.name}` }),
+    onToggleComparison: toggleComparison,
+    onNewChat: startNewChat,
+  }), [sessionId, messages, products, selectedProducts, loading, connecting, error])
+
+  return <BrowserRouter><div className="min-h-screen bg-slate-50 text-slate-800"><Navbar onNewChat={startNewChat} /><Routes>
+    <Route path="/" element={<LandingPage onNewChat={startNewChat} />} /><Route path="/chat" element={<ChatPage {...shared} />} />
+    <Route path="/analytics" element={<AnalyticsPage {...shared} />} /><Route path="*" element={<LandingPage onNewChat={startNewChat} />} />
+  </Routes></div></BrowserRouter>
 }

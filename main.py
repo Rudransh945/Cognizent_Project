@@ -8,7 +8,7 @@ import pdfplumber
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
-from database import create_session, get_history, initialize_database, session_exists
+from database import create_session, get_history, get_session_product_name, initialize_database, session_exists
 from graph import build_graph
 from models import ChatRequest, ChatResponse, MessageResponse, SessionResponse, UploadResponse
 
@@ -53,8 +53,16 @@ async def chat(request: ChatRequest) -> ChatResponse:
     """Run a natural-language turn and return a grounded reply plus active products."""
     _require_session(request.session_id)
     try:
-        result = await graph.ainvoke({"session_id": request.session_id, "user_query": request.message, "chat_history": get_history(request.session_id)})
-        return ChatResponse(response=result["response"], products=result.get("products", []))
+        result = await graph.ainvoke({
+            "session_id": request.session_id,
+            "user_query": request.message,
+            "product_name": get_session_product_name(request.session_id),
+            "chat_history": get_history(request.session_id),
+            "selected_products": request.selected_products,
+        })
+        return ChatResponse(
+            response=result["response"], products=result.get("products", []), reasoning_depth=result.get("reasoning_depth", "")
+        )
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
@@ -69,8 +77,10 @@ async def upload_photo(session_id: str, file: UploadFile = File(...)) -> UploadR
     if len(data) > 4 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="Please upload an image smaller than 4 MB.")
     try:
-        result = await graph.ainvoke({"session_id": session_id, "user_query": "Find this product and alternatives", "image_bytes": data, "image_mime_type": file.content_type, "chat_history": get_history(session_id)})
-        return UploadResponse(response=result["response"], products=result.get("products", []))
+        result = await graph.ainvoke({"session_id": session_id, "user_query": "Review this product", "image_bytes": data, "image_mime_type": file.content_type, "product_name": get_session_product_name(session_id), "chat_history": get_history(session_id)})
+        return UploadResponse(
+            response=result["response"], products=result.get("products", []), reasoning_depth=result.get("reasoning_depth", "")
+        )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Photo identification failed: {exc}") from exc
 
@@ -85,8 +95,10 @@ async def upload_pdf(session_id: str, file: UploadFile = File(...)) -> UploadRes
         data = await file.read()
         with pdfplumber.open(io.BytesIO(data)) as pdf:
             raw_text = "\n".join(page.extract_text() or "" for page in pdf.pages)
-        result = await graph.ainvoke({"session_id": session_id, "user_query": "Analyze uploaded PDF spec sheet", "pdf_text": raw_text, "chat_history": get_history(session_id)})
-        return UploadResponse(response=result["response"], products=result.get("products", []))
+        result = await graph.ainvoke({"session_id": session_id, "user_query": "Analyze uploaded PDF spec sheet", "pdf_text": raw_text, "product_name": get_session_product_name(session_id), "chat_history": get_history(session_id)})
+        return UploadResponse(
+            response=result["response"], products=result.get("products", []), reasoning_depth=result.get("reasoning_depth", "")
+        )
     except Exception as exc:
         raise HTTPException(status_code=422, detail=f"Could not parse this PDF: {exc}") from exc
 

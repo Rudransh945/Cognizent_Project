@@ -17,6 +17,13 @@ class Product(BaseModel):
     source: str = "Unknown"
     link: str = ""
     recommended: bool = False
+    description: str = ""
+    rating: float | None = None
+    rating_count: int | None = None
+    delivery: str = ""
+    offers: str = ""
+    product_id: str = ""
+    position: int | None = None
 
 
 class SessionResponse(BaseModel):
@@ -30,6 +37,7 @@ class ChatRequest(BaseModel):
 
     session_id: str
     message: str = Field(min_length=1, max_length=4000)
+    selected_products: list[Product] = Field(default_factory=list, max_length=4)
 
 
 class ChatResponse(BaseModel):
@@ -37,6 +45,7 @@ class ChatResponse(BaseModel):
 
     response: str
     products: list[Product] = Field(default_factory=list)
+    reasoning_depth: str = ""
 
 
 class UploadResponse(BaseModel):
@@ -44,6 +53,7 @@ class UploadResponse(BaseModel):
 
     response: str
     products: list[Product] = Field(default_factory=list)
+    reasoning_depth: str = ""
 
 
 class MessageResponse(BaseModel):

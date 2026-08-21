@@ -1,0 +1,6 @@
+import { CartesianGrid, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis } from 'recharts'
+
+export default function ValueScatterPlot({ data }) {
+  if (!data.length) return <section className="chart-card"><h2>Rating vs. price</h2><p className="chart-caption">Ratings will appear here when listings provide both a price and a rating.</p></section>
+  return <section className="chart-card"><h2>Rating vs. price</h2><p className="chart-caption">Each point is a listing; larger points have more reviews.</p><div className="h-72"><ResponsiveContainer width="100%" height="100%"><ScatterChart margin={{ top: 12, right: 12, left: 4, bottom: 16 }}><CartesianGrid strokeDasharray="3 3" /><XAxis type="number" dataKey="price" name="Price" tickFormatter={value => `\u20B9${Math.round(value / 1000)}k`} /><YAxis type="number" dataKey="rating" name="Rating" domain={[0, 5]} width={42} /><ZAxis type="number" dataKey="ratingCount" range={[70, 360]} name="Reviews" /><Tooltip cursor={{ strokeDasharray: '3 3' }} formatter={(value, name) => [name === 'Price' ? `\u20B9${Number(value).toLocaleString('en-IN')}` : Number(value).toLocaleString('en-IN'), name]} labelFormatter={(_, payload) => payload?.[0]?.payload?.name || ''} /><Scatter data={data} fill="#14b8a6" /></ScatterChart></ResponsiveContainer></div></section>
+}

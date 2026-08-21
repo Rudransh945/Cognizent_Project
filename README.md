@@ -16,8 +16,8 @@ FastAPI (localhost:8000) ── SQLite (sessions, messages)
                   │
                   ▼
 LangGraph intent router
-  ├─ search → Serper Shopping (gl=in, hl=en) → MiniLM + FAISS
-  ├─ compare/follow-up → session FAISS retrieval → Groq
+  ├─ search → Serper Shopping → page/Serper spec enrichment → MiniLM + FAISS
+  ├─ compare/follow-up → selected products + session FAISS retrieval → Groq
   ├─ photo → Groq vision → Serper Shopping
   └─ PDF → pdfplumber → MiniLM + FAISS
                   │
@@ -91,4 +91,4 @@ All endpoints have Pydantic models and summaries surfaced in Swagger at `/docs`.
 
 ## Grounding and limitations
 
-Product facts originate only from Serper results or an uploaded PDF; incomplete fields stay visibly unavailable instead of being invented. The Groq model name defaults can be overridden by environment variables because provider model availability changes. Verify your Groq account's currently enabled vision model with `GET https://api.groq.com/openai/v1/models` before deployment.
+Product facts originate only from Serper results, their linked retailer/manufacturer pages, or an uploaded PDF. Every returned listing is enriched with Serper specification searches plus explicit JSON-LD product fields when available; incomplete fields stay visibly unavailable instead of being invented. The normalized product evidence is stored per session so FAISS can be rebuilt after an API restart. The Groq model name defaults can be overridden by environment variables because provider model availability changes. Verify your Groq account's currently enabled vision model with `GET https://api.groq.com/openai/v1/models` before deployment.

@@ -7,6 +7,7 @@ langgraph
 langchain-groq
 groq
 requests
+httpx
 beautifulsoup4
 pdfplumber
 sentence-transformers

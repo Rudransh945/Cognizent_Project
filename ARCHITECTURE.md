@@ -12,6 +12,8 @@ START
   ▼
 classify_intent
   ├─ search ───► live_search (Serper /shopping; gl=in, hl=en)
+  │                   │
+  │                   └──► enrich all listings (Serper exact-title evidence + page JSON-LD)
   │                  ▼
   │             extract_specs ─► embed_and_store (MiniLM + FAISS)
   │                                                 │
@@ -33,8 +35,9 @@ classify_intent
 ## Data boundaries
 
 - Serper receives every shopping search with `gl=in` and `hl=en` so prices/retailers are localized for India.
-- FAISS indexes are in process and partitioned by session; SQLite remains the durable source for chat history.
-- `scrape_page_details` supports BeautifulSoup extraction of a page description and `og:image` fallback when a deeper product-page enrichment is added.
+- Every normalized listing keeps the useful Serper result fields (price, rating, delivery, offers, ID, position, and any returned extensions), then receives exact-title search evidence and explicit JSON-LD product fields from its linked page.
+- Product evidence is stored in SQLite per session. FAISS indexes remain in process and are rebuilt from that evidence after a restart.
+- A card selection is verified against trusted session records and placed first in the LLM context for both comparison and follow-up requests.
 - Responses are instructed to use only retrieved or uploaded evidence. They disclose absent details and discuss trade-offs, rather than inventing a universal winner.
 
 ## HTTP lifecycle
